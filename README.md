@@ -11,5 +11,7 @@ I decided to use Reinforcement Learning in PyTorch.
 
 This was tested using Python 3.6.x. and PyTorch 1.0.1
 
-##
+## Improvements
+
+I hope this repository may be useful to someone, if you come up with any suggestion or improvements I will be grateful to hear them!
 
