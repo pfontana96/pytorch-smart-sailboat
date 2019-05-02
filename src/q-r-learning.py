@@ -167,7 +167,7 @@ if __name__ == '__main__':
     # Graphics (Not recommended for training)
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     
-    use_display = False
+    use_display = True
 
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     # Output
