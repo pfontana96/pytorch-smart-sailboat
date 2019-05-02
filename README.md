@@ -7,7 +7,7 @@ Implementation of Q-Reinforcement-Learning to control an autonomous sailboat usi
 ## Introduction
 
 This is a part of an academic project to implement different AI-algorithms to an autonomous sailboat (Only a simmulator right now).
-I decided to use Reinforcement Learning in PyTorch. All my work here supposes that the simmulator does work correctly (it was not part of the project and it was given by a third).
+I saw this problem as a perfect opportunity to implement Reinforcement Learning. All my work here supposes that the simmulator does work correctly (it was not part of the project and it was given by a third).
 
 
 
