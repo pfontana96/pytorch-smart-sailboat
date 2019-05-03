@@ -12,6 +12,7 @@ from itertools import count
 
 from roblib import *  # available at https://www.ensta-bretagne.fr/jaulin/roblib.py
 from numpy import concatenate, float32, array_equal, angle
+from time import *
 
 from sim import *
 
@@ -159,7 +160,10 @@ def optimize_model():
         param.grad.data.clamp_(-1, 1)
     optimizer.step()
 
-
+def save_model(model):
+    ltime = time.localtime(time.time())
+    path = "../data/{:04d}-{:02d}-{:02d}_{:02d}:{:02d}:{:02d}.h5"
+    torch.save(model, path.format(ltime.tm_year, ltime.tm_mon, ltime.tm_mday, ltime.tm_hour, ltime.tm_min, ltime.tm_sec))
 
 if __name__ == '__main__':
 
@@ -167,7 +171,7 @@ if __name__ == '__main__':
     # Graphics (Not recommended for training)
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     
-    use_display = True
+    use_display = False
 
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     # Output
@@ -315,9 +319,10 @@ if __name__ == '__main__':
             if done:
                 episode_durations.append(t + 1)
                 break
-        # Update the target network, copying all weights and biases in DQN
+        # Update the target network, copying all weights and biases in NN
         if i_episode % TARGET_UPDATE == 0:
             target_net.load_state_dict(policy_net.state_dict())
+        
         if status == 'win':
             win_history.append(1)
         else:
