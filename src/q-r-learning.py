@@ -65,11 +65,11 @@ class Net(nn.Module):
 
 def get_reward(pos, target):
     #HARDCODED!!!!!!!
-    x = [-100, 100]
-    y = [-60, 60]
+    x = [-100, 100] # Map boundaries
+    y = [-60, 60]   # Map boundaries
     status = 'not over'
     reward = 0
-    if array_equal(pos.astype(int), target):
+    if norm(target-pos) < 3:
         status = 'win'
         reward = 1000
     elif (pos[0] > x[1] or pos[0] < x[0] or pos[1] < y[0] or pos[1]>y[1]):
@@ -160,10 +160,18 @@ def optimize_model():
         param.grad.data.clamp_(-1, 1)
     optimizer.step()
 
-def save_model(model):
+    return loss
+
+def save_model(model, i):
     ltime = time.localtime(time.time())
-    path = "../data/{:04d}-{:02d}-{:02d}_{:02d}:{:02d}:{:02d}.h5"
-    torch.save(model, path.format(ltime.tm_year, ltime.tm_mon, ltime.tm_mday, ltime.tm_hour, ltime.tm_min, ltime.tm_sec))
+    #path = "../data/{:04d}-{:02d}-{:02d}_{:02d}:{:02d}:{:02d}.h5"
+    path = "../data/model_{:03d}"
+    torch.save(model, path.format(i))
+
+def clampTarget(target, dist=10.0):
+    if norm(target) > dist:
+        return target*dist/norm(target)
+    return target
 
 if __name__ == '__main__':
 
@@ -171,7 +179,7 @@ if __name__ == '__main__':
     # Graphics (Not recommended for training)
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     
-    use_display = False
+    use_display = True
 
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     # Output
@@ -191,21 +199,27 @@ if __name__ == '__main__':
 
     input_size = 4 # Relative position to target and wind conditions    
     output_size = 81       
-    hidden_size = 10       # Au Choix
+    hidden_size = 40       # Au Choix
     BATCH_SIZE = 128       # Au Choix 
     GAMMA = 0.999
 
     
-    EPS_START = 0.9
-    EPS_END = 0.05
+    #Exploration rate
+
+    #EPS_START = 0.9
+    #EPS_END = 0.05
+    EPS_START = 0.0
+    EPS_END = 0.0
     EPS_DECAY = 200
     TARGET_UPDATE = 10
 
-    num_episodes = 5000
+
+    num_episodes = 1000
     steps_done = 0
     n_actions = output_size # Angle timon et angle voile
 
-    policy_net = Net(input_size, output_size, n_actions).to(device)
+    #policy_net = Net(input_size, output_size, n_actions).to(device)
+    policy_net = torch.load("../data/model_1000") #Loads model trained (1000 episodes)
     target_net = Net(input_size, output_size, n_actions).to(device)
 
     target_net.load_state_dict(policy_net.state_dict())
@@ -243,7 +257,7 @@ if __name__ == '__main__':
         'p9':        10000
     }
 
-    t_max = 500
+    t_max = 100
     dt = 0.2
 
     #-----------------------------------------------------
@@ -269,12 +283,15 @@ if __name__ == '__main__':
     for i_episode in range(num_episodes):
 
         # Initialize the environment and state
-        x = array([[10,-40,-3,1,0]]).T   #x=(x,y,θ,v,w)
+        #x = array([[10,-40,-3,1,0]]).T   #x=(x,y,θ,v,w)
+        x = array([[0.0, 0.0, -3, 1, 0]]).T   #x=(x,y,θ,v,w)
         u = array([0, 1])
         #target = array([random.randrange(-figure_params['width']/2, figure_params['width']/2), random.randrange(-figure_params['height']/2, figure_params['height']/2)])
-        target = array([80, 40])
+        #target = array([80, 40])
+        targetRange = 5.0 + i_episode*0.05
+        target = np.random.uniform(-targetRange,targetRange,2)
         to_target = array([[target[0]-x[0][0], target[1]-x[1][0]]], dtype = float32)
-        to_target = 20 * to_target / norm(to_target)
+        to_target = clampTarget(to_target)
         wind = array([[params['awind'], params['ψ']]], dtype = float32)
         #state = torch.from_numpy(to_target).to(device)
         state = torch.from_numpy(concatenate((to_target, wind), axis = None).reshape(1,4)).to(device)
@@ -299,7 +316,7 @@ if __name__ == '__main__':
 
             if status == 'not over':
                 to_target = array([[target[0]-x[0][0], target[1]-x[1][0]]], dtype = float32)
-                to_target = 20 * to_target / norm(to_target)
+                to_target = clampTarget(to_target)
                 #next_state = torch.from_numpy(to_target).to(device)
                 wind = array([[params['awind'], params['ψ']]], dtype = float32)
                 next_state = torch.from_numpy(concatenate((to_target, wind), axis = None).reshape(1,4)).to(device)
@@ -314,7 +331,7 @@ if __name__ == '__main__':
             # Move to the next state
             state = next_state
             # Perform one step of the optimization (on the target network)
-            optimize_model()
+            loss = optimize_model()
 
             if done:
                 episode_durations.append(t + 1)
@@ -328,9 +345,14 @@ if __name__ == '__main__':
         else:
             win_history.append(0)
         win_rate = sum(win_history)/len(win_history) if len(win_history)>0 else 0.0
-        template = "Episode: {:03d}/{:d} | Win Count: {:03d} | Win Rate: {:.3f}%"
-        print(template.format(i_episode, num_episodes-1, sum(win_history), win_rate))
+        if loss is not None:
+            template = "Episode: {:03d}/{:d} | Loss: {:.3f} | Win Count: {:03d} | Win Rate: {:.3f}%"
+            print(template.format(i_episode, num_episodes-1, loss, sum(win_history), win_rate))
+        else:
+            template = "Episode: {:03d}/{:d} | Loss: N/A | Win Count: {:03d} | Win Rate: {:.3f}%"
+            print(template.format(i_episode, num_episodes-1, sum(win_history), win_rate))
 
+    #save_model(policy_net, num_episodes)
     print('Complete')
 
 
