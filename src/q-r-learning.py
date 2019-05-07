@@ -168,7 +168,7 @@ def save_model(model, i):
     path = "../data/model_{:03d}"
     torch.save(model, path.format(i))
 
-def clampTarget(target, dist=10.0):
+def clamp_target(target, dist=10.0):
     if norm(target) > dist:
         return target*dist/norm(target)
     return target
@@ -291,7 +291,7 @@ if __name__ == '__main__':
         targetRange = 5.0 + i_episode*0.05
         target = np.random.uniform(-targetRange,targetRange,2)
         to_target = array([[target[0]-x[0][0], target[1]-x[1][0]]], dtype = float32)
-        to_target = clampTarget(to_target)
+        to_target = clamp_target(to_target)
         wind = array([[params['awind'], params['ψ']]], dtype = float32)
         #state = torch.from_numpy(to_target).to(device)
         state = torch.from_numpy(concatenate((to_target, wind), axis = None).reshape(1,4)).to(device)
@@ -316,7 +316,7 @@ if __name__ == '__main__':
 
             if status == 'not over':
                 to_target = array([[target[0]-x[0][0], target[1]-x[1][0]]], dtype = float32)
-                to_target = clampTarget(to_target)
+                to_target = clamp_target(to_target)
                 #next_state = torch.from_numpy(to_target).to(device)
                 wind = array([[params['awind'], params['ψ']]], dtype = float32)
                 next_state = torch.from_numpy(concatenate((to_target, wind), axis = None).reshape(1,4)).to(device)
