@@ -206,10 +206,10 @@ if __name__ == '__main__':
     
     #Exploration rate
 
-    #EPS_START = 0.9
-    #EPS_END = 0.05
-    EPS_START = 0.0
-    EPS_END = 0.0
+    EPS_START = 0.9
+    EPS_END = 0.05
+    #EPS_START = 0.0
+    #EPS_END = 0.0
     EPS_DECAY = 200
     TARGET_UPDATE = 10
 
@@ -218,8 +218,8 @@ if __name__ == '__main__':
     steps_done = 0
     n_actions = output_size # Angle timon et angle voile
 
-    #policy_net = Net(input_size, output_size, n_actions).to(device)
-    policy_net = torch.load("../data/model_1000") #Loads model trained (1000 episodes)
+    policy_net = Net(input_size, output_size, n_actions).to(device)
+    #policy_net = torch.load("../data/model_1000") #Loads model trained (1000 episodes)
     target_net = Net(input_size, output_size, n_actions).to(device)
 
     target_net.load_state_dict(policy_net.state_dict())
@@ -292,9 +292,9 @@ if __name__ == '__main__':
         target = np.random.uniform(-targetRange,targetRange,2)
         to_target = array([[target[0]-x[0][0], target[1]-x[1][0]]], dtype = float32)
         to_target = clamp_target(to_target)
-        wind = array([[params['awind'], params['ψ']]], dtype = float32)
+        wind = array([params['awind'], params['ψ']], dtype = float32)
         #state = torch.from_numpy(to_target).to(device)
-        state = torch.from_numpy(concatenate((to_target, wind), axis = None).reshape(1,4)).to(device)
+        state = torch.from_numpy(concatenate((to_target, wind.reshape(1,2)), axis = None).reshape(1,4)).to(device)
          
         for t in arange(0,t_max,dt):
             # Select and perform an action
@@ -302,7 +302,7 @@ if __name__ == '__main__':
             theta_voile, theta_derive = decodeAction(action)
             u = array([[possible_actions[theta_voile], possible_actions[theta_derive]]])
 
-            x, δs = step(x, u, dt, params)
+            x, δs = step(x, u, dt, wind)
             
             #Graphics
             if use_display == True:
@@ -318,8 +318,7 @@ if __name__ == '__main__':
                 to_target = array([[target[0]-x[0][0], target[1]-x[1][0]]], dtype = float32)
                 to_target = clamp_target(to_target)
                 #next_state = torch.from_numpy(to_target).to(device)
-                wind = array([[params['awind'], params['ψ']]], dtype = float32)
-                next_state = torch.from_numpy(concatenate((to_target, wind), axis = None).reshape(1,4)).to(device)
+                next_state = torch.from_numpy(concatenate((to_target, wind.reshape(1,2)), axis = None).reshape(1,4)).to(device)
                 done = False
             else:
                 next_state = None
