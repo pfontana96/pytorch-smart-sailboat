@@ -21,7 +21,6 @@ import sys, getopt
 # if gpu is to be used
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-
 def decode_action(act):
      return act//9, act%9 # voile, derive
 
@@ -145,7 +144,8 @@ def optimize_model():
     optimizer.step()
 
 def save_model(model, i):
-    path = "../data/model_{:03d}"
+    path = "../data/model_{:d}"
+    # path = "../data/model_2000"
     print('Saving model parameters "', path, '"..')
     torch.save(model.state_dict(), path.format(i))
 
@@ -164,7 +164,7 @@ if __name__ == '__main__':
     for opt, arg in opts:
         if opt == '--model_params':
             model_file = arg
-    env = gym.make('voilier-v0').unwrapped
+    env = gym.make('voilier-v2').unwrapped
     ######################################################################
     # Replay Memory
     # -------------
@@ -215,17 +215,17 @@ if __name__ == '__main__':
 
     BATCH_SIZE = 128
     GAMMA = 0.999
-    #EPS_START = 0.9
-    #EPS_END = 0.05
+    # EPS_START = 0.9
+    # EPS_END = 0.05
     EPS_START = 0.0
     EPS_END = 0.0
     EPS_DECAY = 200
     TARGET_UPDATE = 10
 
     # Get number of actions from gym action space
-    input_size = 4 # Relative position to target and wind conditions
-    hidden_size = 40    
-    n_actions = 81
+    input_size = 7 # Relative position to target and wind conditions
+    hidden_size = 8    
+    n_actions = 9
 
     policy_net =  Net(input_size, n_actions, hidden_size).to(device)
     if model_file is not None:
@@ -246,7 +246,7 @@ if __name__ == '__main__':
 
     t_max = 100
     dt = 0.2
-    num_episodes = 1000
+    num_episodes = 5000
 
     ######################################################################
     #
@@ -256,22 +256,24 @@ if __name__ == '__main__':
     # 1), and optimize our model once. When the episode ends (our model
     # fails), we restart the loop.
     #
-    # Below, `num_episodes` is set small. You should download
-    # the notebook and run lot more epsiodes, such as 300+ for meaningful
-    # duration improvements.
     #
 
     for i_episode in range(num_episodes):
         # Initialize the environment and state
-        state = env.reset()
+        state = env.reset() # to_target[2], norm(to_target), theta derive, theta voile, wind[2]
         state = torch.from_numpy(np.array([state], dtype = np.float32)).to(device)
         for t in arange(0,t_max,dt):
             env.render()
+
+
             # Select and perform an action
+            # action = select_action(state)
+            # u = np.array([possible_actions[theta_voile], possible_actions[theta_derive]]) / (pi/2)
             action = select_action(state)
-            theta_voile, theta_derive = decode_action(action)
-            u = np.array([possible_actions[theta_voile], possible_actions[theta_derive]]) / (pi/2)
-            next_state, reward, done, _ = env.step(u)
+            action_v = np.zeros(n_actions).reshape(1,n_actions)
+            action_v[0,action] = 1
+
+            next_state, reward, done, _ = env.step(action_v)
             next_state = torch.from_numpy(np.array([next_state], dtype = np.float32)).to(device)
 
             reward = torch.tensor([reward], device=device, dtype = torch.float)
@@ -290,9 +292,10 @@ if __name__ == '__main__':
         # Update the target network, copying all weights and biases in DQN
         if i_episode % TARGET_UPDATE == 0:
             target_net.load_state_dict(policy_net.state_dict())
-        print("Episode: ", i_episode)
+        template = "Episode: {:05d}/{:d}"
+        print(template.format(i_episode, num_episodes))
 
     print('Complete')
-    env.render()
+    # env.render()
     env.close()
     save_model(policy_net, num_episodes)
