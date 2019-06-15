@@ -14,20 +14,19 @@ import torch.nn.functional as F
 import torchvision.transforms as T
 from numpy import pi, arange
 
-import sys, getopt
+import matplotlib.pyplot as plt
+import argparse
 
-
+# Arguments parser
+parser = argparse.ArgumentParser(prog = "pytorch-smart-sailboat")
+parser.add_argument('-v', '--version', action='version', version='%(prog)s 1.0')
+parser.add_argument('-f', '--file', type=str, default=None, help='Model Parameters File')
+parser.add_argument('-e', '--episodes', type=int, default=1000, help='Number of episodes')
+parser.add_argument('-g', '--graphics', action='store_true', help='Enable Graphics')
+args = parser.parse_args()
 
 # if gpu is to be used
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-def decode_action(act):
-     return act//9, act%9 # voile, derive
-
-def code_action(action):
-    #Function to transform the action in a single number
-    return  action[0]*9 + action[1]
-
 
 class ReplayMemory(object):
 
@@ -146,7 +145,7 @@ def optimize_model():
 def save_model(model, i):
     path = "../data/model_{:d}"
     # path = "../data/model_2000"
-    print('Saving model parameters "', path, '"..')
+    print('Saving model parameters "', path.format(i), '"..')
     torch.save(model.state_dict(), path.format(i))
 
 def load_model(model, path):
@@ -156,14 +155,11 @@ def load_model(model, path):
 
 if __name__ == '__main__':
     model_file = None
-    try:
-        opts, args = getopt.getopt(sys.argv[1:],"",["model_params="])
-    except getopt.GetoptError:
-        print("RLModule.py --model_params <PATH_TO_FILE>")
-        sys.exit(2)
-    for opt, arg in opts:
-        if opt == '--model_params':
-            model_file = arg
+    
+    if args.file:
+        model_file = args.file
+    
+    
     env = gym.make('voilier-v2').unwrapped
     ######################################################################
     # Replay Memory
@@ -215,21 +211,22 @@ if __name__ == '__main__':
 
     BATCH_SIZE = 128
     GAMMA = 0.999
-    # EPS_START = 0.9
-    # EPS_END = 0.05
-    EPS_START = 0.0
-    EPS_END = 0.0
+    EPS_START = 0.9
+    EPS_END = 0.05
+    
     EPS_DECAY = 200
     TARGET_UPDATE = 10
 
     # Get number of actions from gym action space
-    input_size = 7 # Relative position to target and wind conditions
-    hidden_size = 8    
-    n_actions = 9
+    input_size = env.observation_space.shape[0]  # Relative position to target and wind conditions
+    hidden_size = 8    #Arbitrary
+    n_actions = env.action_space.n
 
     policy_net =  Net(input_size, n_actions, hidden_size).to(device)
     if model_file is not None:
         load_model(policy_net, model_file)
+        EPS_START = 0.0
+        EPS_END = 0.0
     target_net = Net(input_size, n_actions, hidden_size).to(device)
     target_net.load_state_dict(policy_net.state_dict())
     target_net.eval()
@@ -242,11 +239,12 @@ if __name__ == '__main__':
 
     possible_actions = [-pi/2, -pi/3, -pi/4, -pi/5, 0, pi/5, pi/4, pi/3, pi/2]
 
-    episode_durations = []
+    rewards = []
 
     t_max = 100
     dt = 0.2
-    num_episodes = 5000
+    num_episodes = args.episodes
+    global_r = -2.0
 
     ######################################################################
     #
@@ -262,8 +260,10 @@ if __name__ == '__main__':
         # Initialize the environment and state
         state = env.reset() # to_target[2], norm(to_target), theta derive, theta voile, wind[2]
         state = torch.from_numpy(np.array([state], dtype = np.float32)).to(device)
+
+        ep_r = 0.
         for t in arange(0,t_max,dt):
-            env.render()
+            if args.graphics: env.render()
 
 
             # Select and perform an action
@@ -276,6 +276,7 @@ if __name__ == '__main__':
             next_state, reward, done, _ = env.step(action_v)
             next_state = torch.from_numpy(np.array([next_state], dtype = np.float32)).to(device)
 
+            ep_r += reward
             reward = torch.tensor([reward], device=device, dtype = torch.float)
 
             # Store the transition in memory
@@ -287,15 +288,29 @@ if __name__ == '__main__':
             # Perform one step of the optimization (on the target network)
             optimize_model()
             if done:
-                episode_durations.append(t + 1)
                 break
+        rewards.append(ep_r)
+        if global_r == 0.:
+            global_r = -2.
+        else:
+            global_r = global_r*0.99 + ep_r*0.01
         # Update the target network, copying all weights and biases in DQN
         if i_episode % TARGET_UPDATE == 0:
             target_net.load_state_dict(policy_net.state_dict())
-        template = "Episode: {:05d}/{:d}"
-        print(template.format(i_episode, num_episodes))
+        template = "Episode: {:05d}/{:d} | Ep Reward: {:.3f} | Global Reward: {:.3f}"
+        print(template.format(i_episode+1, num_episodes, ep_r, global_r))
+
+        # Each 1000 episodes I save the project
+        if i_episode%1000==0:
+            save_model(policy_net, i_episode)
 
     print('Complete')
-    # env.render()
+    if args.graphics: env.render()
     env.close()
     save_model(policy_net, num_episodes)
+    plt.plot(rewards)
+    plt.ylabel('Moving average ep reward')
+    plt.xlabel('Episodes')
+    template = '../data/reward_{:d}'
+    plt.savefig(template.format(num_episodes))
+
